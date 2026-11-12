@@ -6,6 +6,7 @@ import { uuid } from '../lib/ids';
 import { fmtPace, paceSecPerKm } from '../lib/pace';
 import { isKraft, sortNewestFirst, uebungenNachHaeufigkeit } from '../lib/stats';
 import { findUebung, normText } from '../lib/uebungen';
+import { ordneMuskelgruppen } from '../lib/zuordnung';
 import type { BoulderSession, KraftSession, LaufSession, Muskelgruppe, Satz, Session, Sport } from '../lib/types';
 import { GRAD_MAX, GRAD_MIN, MUSKELGRUPPEN } from '../lib/types';
 import { data, hallenById, saveHalle, saveSession, uebungenById } from '../store';
@@ -48,6 +49,8 @@ export interface Draft {
   m: string;
   s: string;
   fokus: Muskelgruppe[];
+  /** true = Fokus von Hand gewählt; sonst wird er aus den Übungen abgeleitet */
+  fokusManuell: boolean;
   uebungen: UebungDraft[];
 }
 
@@ -87,6 +90,7 @@ export function newDraft(sport: Sport, datum: string): Draft {
     m: '',
     s: '',
     fokus: [],
+    fokusManuell: false,
     uebungen: sport === 'kraft' ? [emptyUebung()] : [],
   };
 }
@@ -108,6 +112,7 @@ export function draftFromSession(s: Session): Draft {
     d.s = String(t % 60).padStart(2, '0');
   } else {
     d.fokus = [...s.fokusMuskulatur];
+    d.fokusManuell = !s.fokusAbgeleitet && s.fokusMuskulatur.length > 0;
     d.uebungen = s.uebungen.map((e) => {
       const u = uebungenById.value.get(e.uebungId);
       return {
@@ -129,6 +134,13 @@ export function draftFromSession(s: Session): Draft {
     });
   }
   return d;
+}
+
+/** Fokus aus den Muskelgruppen der eingetragenen (bekannten) Übungen. */
+export function abgeleiteterFokus(d: Pick<Draft, 'uebungen'>): Muskelgruppe[] {
+  return ordneMuskelgruppen(
+    d.uebungen.flatMap((u) => (u.name.trim() ? findUebung(data.value.uebungen, u.name, u.variante)?.muskelgruppen ?? [] : [])),
+  );
 }
 
 // ================================================================ Prüfen & Speichern
@@ -219,7 +231,13 @@ export function validate(d: Draft): { errors: Errors; session?: Session; namen?:
   });
   if (!uebungen.length) errors.uebungen = 'Bitte mindestens eine Übung eintragen.';
   if (Object.keys(errors).length) return { errors };
-  const s: KraftSession = { ...base, sport: 'kraft', fokusMuskulatur: d.fokus, uebungen };
+  const s: KraftSession = {
+    ...base,
+    sport: 'kraft',
+    fokusMuskulatur: d.fokusManuell ? ordneMuskelgruppen(d.fokus) : abgeleiteterFokus(d),
+    fokusAbgeleitet: !d.fokusManuell,
+    uebungen,
+  };
   return { errors, session: s, namen };
 }
 
@@ -449,6 +467,7 @@ function letzteLeistung(name: string, variante: string, datum: string, ownId?: s
 }
 
 function KraftFields({ draft, set, errors }: FP) {
+  const fokusShown = draft.fokusManuell ? draft.fokus : abgeleiteterFokus(draft);
   const freq = useMemo(() => uebungenNachHaeufigkeit(data.value.sessions), [data.value.sessions]);
   const namen = useMemo(() => {
     const order = new Map(freq.map((f, i) => [f.uebungId, i]));
@@ -488,19 +507,35 @@ function KraftFields({ draft, set, errors }: FP) {
 
   return (
     <>
-      <Field label="Fokus">
+      <Field
+        label="Fokus"
+        hint={
+          draft.fokusManuell
+            ? undefined
+            : fokusShown.length
+              ? 'Automatisch aus den Muskelgruppen der Übungen – antippen zum Anpassen.'
+              : 'Wird aus den Übungen vorgeschlagen, sobald deren Muskelgruppen bekannt sind.'
+        }
+      >
         <div class="chips">
           {MUSKELGRUPPEN.map((m) => (
             <button
               type="button"
               class="chip"
-              aria-pressed={draft.fokus.includes(m)}
-              onClick={() => set({ fokus: draft.fokus.includes(m) ? draft.fokus.filter((x) => x !== m) : [...draft.fokus, m] })}
+              aria-pressed={fokusShown.includes(m)}
+              onClick={() =>
+                set({ fokusManuell: true, fokus: fokusShown.includes(m) ? fokusShown.filter((x) => x !== m) : [...fokusShown, m] })
+              }
             >
               {m}
             </button>
           ))}
         </div>
+        {draft.fokusManuell && (
+          <button type="button" class="link" style={{ fontSize: '14px' }} onClick={() => set({ fokusManuell: false, fokus: [] })}>
+            Wieder automatisch aus den Übungen
+          </button>
+        )}
       </Field>
 
       <div class="field">

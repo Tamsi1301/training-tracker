@@ -16,6 +16,7 @@ export const MUSKELGRUPPEN = [
   'Schultern',
   'Arme',
   'Beine',
+  'Gesäß',
   'Core',
   'Ganzkörper',
 ] as const;
@@ -67,6 +68,11 @@ export interface UebungEintrag {
 export interface KraftSession extends SessionBase {
   sport: 'kraft';
   fokusMuskulatur: Muskelgruppe[];
+  /**
+   * true = Fokus wurde automatisch aus den Muskelgruppen der Übungen abgeleitet
+   * und wird bei Änderungen der Zuordnung neu berechnet. Fehlt/false = von Hand gewählt.
+   */
+  fokusAbgeleitet?: boolean;
   uebungen: UebungEintrag[];
 }
 
@@ -93,6 +99,8 @@ export interface Uebung {
   name: string;
   /** Gerät/Variante, leerer String = keine Angabe */
   variante: string;
+  /** Standard-Muskelgruppe(n) der Übung (Liste; der CSV-Import füllt einen Wert) */
+  muskelgruppen?: Muskelgruppe[];
   erstellt: string;
   geaendert: string;
 }

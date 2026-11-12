@@ -28,7 +28,8 @@ Eine persönliche Trainings-App für **ein iPhone**, die ich während und nach d
 - Anzeige im Verlauf und Dashboard als Vergleich, z. B. „5 von 7".
 
 **Kraftsport**
-- `fokusMuskulatur` (Mehrfachauswahl): Brust, Rücken, Schultern, Arme, Beine, Core, Ganzkörper.
+- `fokusMuskulatur` (Mehrfachauswahl): Brust, Rücken, Schultern, Arme, Beine, Gesäß, Core, Ganzkörper. Gesäß ist eine eigene Gruppe und wird nicht auf Beine abgebildet.
+- Jede Übung (Name + Gerät/Variante) hat eine Liste von Standard-Muskelgruppen. Der Fokus einer Einheit wird daraus abgeleitet (Menge der Muskelgruppen ihrer Übungen), solange er nicht von Hand gewählt wurde.
 - `uebungen[]`: je `uebungId` und `saetze[]`; jeder Satz hat `gewichtKg` und `wiederholungen`. Das Gewicht kann je Satz variieren.
 - **Übung (Bibliothek):** `id`, `name`. Füllt sich aus meinen Eingaben, mit Autovervollständigung und Vorschlägen.
 - Satzanzahl wird aus der Zahl der Sätze abgeleitet.
@@ -70,6 +71,7 @@ Eine persönliche Trainings-App für **ein iPhone**, die ich während und nach d
 - **Export** per Button: vollständige Sicherung als JSON-Datei (Einheiten, Hallen, Übungen, Version). Auf iOS möglichst über das Teilen-Menü („In Dateien sichern") bzw. Datei-Download.
 - **Import** per Button: JSON-Sicherung einspielen, mit Wahl **„Ersetzen"** oder **„Zusammenführen"** (Dubletten per `id` erkennen). Vorher Vorschau mit Anzahl der Einträge. Ein Import-Roundtrip (Export, dann Import) darf keine Daten verändern.
 - **CSV-Import für Altdaten:** Ich habe Trainingsdaten aus mehreren Jahren. Bereitstelle je Sportart eine **CSV-Vorlage** zum Herunterladen (definierte Spalten, deutsches Zahlen- und Datumsformat) und einen Import mit Fehlerbericht (Zeile, Problem). Fehlende Hallen und Übungen automatisch anlegen, nach Bestätigung.
+- **Übungen-Zuordnung (`uebungen_zuordnung.csv`):** Kopfzeile `uebung;geraet_variante;anzahl_einheiten;muskelgruppe`. Ordnet jeder Übung (Name + Variante, Groß-/Kleinschreibung egal) genau eine Standard-Muskelgruppe zu. `anzahl_einheiten` dient nur zur Kontrolle in der Vorschau und wird nicht gespeichert. Unbekannte Muskelgruppen werden im Fehlerbericht gemeldet. Die Reihenfolge von Kraft-Import und Zuordnungs-Import ist egal; der Fokus wird auch rückwirkend abgeleitet.
 - Wichtig für Handywechsel: Sicherung auf dem alten Handy exportieren, auf dem neuen die App installieren, importieren.
 
 ## 7. Design

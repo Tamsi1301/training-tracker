@@ -3,7 +3,7 @@ import { APP_CONFIG } from '../config';
 import { isISODate } from './dates';
 import { normText, uebungKey } from './uebungen';
 import type { AppData, Backup, Halle, Session, Uebung } from './types';
-import { SPORTS } from './types';
+import { MUSKELGRUPPEN, SPORTS } from './types';
 
 export function createBackup(data: AppData, now: Date = new Date()): Backup {
   return {
@@ -69,9 +69,12 @@ export function parseBackup(text: string): ParseResult {
   for (const h of raw.hallen)
     if (!isObj(h) || typeof h.id !== 'string' || typeof h.name !== 'string' || typeof h.maxGrad !== 'number')
       return { ok: false, error: 'Eine Halle in der Sicherung ist fehlerhaft.' };
-  for (const u of raw.uebungen)
+  for (const u of raw.uebungen) {
     if (!isObj(u) || typeof u.id !== 'string' || typeof u.name !== 'string')
       return { ok: false, error: 'Eine Übung in der Sicherung ist fehlerhaft.' };
+    if (u.muskelgruppen !== undefined && (!Array.isArray(u.muskelgruppen) || u.muskelgruppen.some((m) => !MUSKELGRUPPEN.includes(m as never))))
+      return { ok: false, error: `Übung „${u.name}“ hat eine unbekannte Muskelgruppe.` };
+  }
 
   const hallenIds = new Set((raw.hallen as Halle[]).map((h) => h.id));
   const uebungIds = new Set((raw.uebungen as Uebung[]).map((u) => u.id));
