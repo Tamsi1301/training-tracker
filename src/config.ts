@@ -13,10 +13,10 @@ export const APP_CONFIG = {
   description: 'Persönlicher Trainings-Tracker für Bouldern, Kraftsport und Laufen.',
   /** Hintergrund- und Statusleistenfarben (hell / dunkel) */
   colors: {
-    backgroundLight: '#F6F5F2',
+    backgroundLight: '#F5F5F3',
     backgroundDark: '#1C1C1E',
-    iconBackground: '#8E8C87',
-    iconForeground: '#E4CF9B',
+    iconBackground: '#3A3A3C',
+    iconForeground: '#C9AE78',
   },
   /** Dateiformat-Kennung der JSON-Sicherung */
   backupFormat: 'training-backup',

@@ -9,6 +9,6 @@ coverage/
 # CSV/JSON nur in tests/fixtures (erfundene Daten) und public/vorlagen erlaubt.
 *.csv
 !tests/fixtures/*.csv
-!public/vorlagen/*.csv
+
 training-backup*.json
 backup*.json

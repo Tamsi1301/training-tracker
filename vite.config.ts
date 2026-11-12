@@ -13,9 +13,11 @@ const pick = (key: string, fallback: string) =>
 const name = pick('name', 'Training');
 const shortName = pick('shortName', name);
 const description = pick('description', '');
-const bgLight = pick('backgroundLight', '#F6F5F2');
+const bgLight = pick('backgroundLight', '#F5F5F3');
 
 process.env.VITE_APP_VERSION = pkg.version;
+process.env.VITE_APP_NAME = name;
+process.env.VITE_APP_SHORT_NAME = shortName;
 
 export default defineConfig({
   // Relative Pfade: funktioniert unter https://<user>.github.io/<repo>/ und lokal.
@@ -25,7 +27,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: false,
-      includeAssets: ['favicon.svg', 'icons/*.png', 'vorlagen/*.csv'],
+      includeAssets: ['icons/*.png'],
       manifest: {
         id: './',
         name,
@@ -46,7 +48,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,csv,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,png,woff2,webmanifest}'],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
       },
