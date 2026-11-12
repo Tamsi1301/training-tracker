@@ -78,7 +78,7 @@ function DetailBody({ s }: { s: Session }) {
                               ? fmtClock(x.dauerSekunden)
                               : `${x.wiederholungen != null ? fmtNum(x.wiederholungen) : '–'} ×`}
                           </td>
-                          <td class="num" style={{ width: '96px' }}>
+                          <td class="num" style={{ width: '112px' }}>
                             {x.gewichtKg != null ? `${fmtNum(x.gewichtKg)} kg` : x.dauerSekunden && x.wiederholungen == null ? '' : 'Körpergew.'}
                           </td>
                         </tr>
