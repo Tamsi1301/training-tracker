@@ -24,16 +24,16 @@ const hallen = [
   { id: randomUUID(), name: 'Kletterhalle Süd', maxGrad: 7 },
 ].map((h) => ({ ...h, erstellt: '2025-01-01T00:00:00.000Z', geaendert: '2025-01-01T00:00:00.000Z' }));
 
-const ueb = (name, variante = '') => ({ id: randomUUID(), name, variante, erstellt: '2025-01-01T00:00:00.000Z', geaendert: '2025-01-01T00:00:00.000Z' });
+const ueb = (name, variante, gruppe) => ({ id: randomUUID(), name, variante, muskelgruppen: [gruppe], erstellt: '2025-01-01T00:00:00.000Z', geaendert: '2025-01-01T00:00:00.000Z' });
 const U = {
-  kb: ueb('Kniebeuge'),
-  bd: ueb('Bankdrücken'),
-  ht: ueb('Hip thrusts'),
-  htm: ueb('Hip thrusts', 'Maschine'),
-  lz: ueb('Latzug'),
-  kz: ueb('Klimmzüge', 'mit Band'),
-  ru: ueb('Einarmiges Rudern', 'je Seite'),
-  pl: ueb('Plank'),
+  kb: ueb('Kniebeuge', '', 'Beine'),
+  bd: ueb('Bankdrücken', '', 'Brust'),
+  ht: ueb('Hip thrusts', '', 'Gesäß'),
+  htm: ueb('Hip thrusts', 'Maschine', 'Gesäß'),
+  lz: ueb('Latzug', '', 'Rücken'),
+  kz: ueb('Klimmzüge', 'mit Band', 'Rücken'),
+  ru: ueb('Einarmiges Rudern', 'je Seite', 'Rücken'),
+  pl: ueb('Plank', '', 'Core'),
 };
 const uebungen = Object.values(U);
 
@@ -67,7 +67,7 @@ for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
           { uebungId: U.kz.id, saetze: sets(3, null, 5 + Math.round(level * 4)) },
           { uebungId: U.ru.id, saetze: sets(3, w(12, 6), 12, { notiz: 'Gewicht je Arm' }) },
         ];
-    sessions.push({ id: randomUUID(), sport: 'kraft', datum: day, dauerSekunden: (50 + Math.round(rnd() * 25)) * 60, fokusMuskulatur: legDay ? ['Beine', 'Core'] : ['Brust', 'Rücken', 'Arme'], uebungen: uebungenS, erstellt: ts(day, 17), geaendert: ts(day, 17) });
+    sessions.push({ id: randomUUID(), sport: 'kraft', datum: day, dauerSekunden: (50 + Math.round(rnd() * 25)) * 60, fokusMuskulatur: legDay ? ['Beine', 'Gesäß', 'Core'] : ['Brust', 'Rücken'], fokusAbgeleitet: true, uebungen: uebungenS, erstellt: ts(day, 17), geaendert: ts(day, 17) });
   }
   if ((wd === 2 || wd === 6) && rnd() < 0.75) {
     const km = Math.round((pick([5, 5, 6.5, 8, 10]) + (wd === 6 ? 2 * level * 3 : 0) + rnd() * 0.6) * 10) / 10;

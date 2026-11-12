@@ -51,6 +51,7 @@ Für alle Vorlagen gilt: Semikolon `;` als Trennzeichen, Datum `TT.MM.JJJJ`, Dez
 | Kraftsport | `datum;sportart;uebung;geraet_variante;satz;wiederholungen;gewicht_kg;dauer_min;notiz` |
 | Bouldern | `datum;sportart;halle;halle_max_grad;session_max_grad;dauer_min;notiz` |
 | Laufen | `datum;sportart;distanz_km;dauer;notiz` (Dauer als `h:mm:ss`) |
+| Übungen-Zuordnung | `uebung;geraet_variante;anzahl_einheiten;muskelgruppe` |
 
 **Kraftsport:**
 - Eine Zeile pro Satz. Alle Zeilen eines Datums bilden eine Einheit.
@@ -59,6 +60,15 @@ Für alle Vorlagen gilt: Semikolon `;` als Trennzeichen, Datum `TT.MM.JJJJ`, Dez
 - Steht kein `satz`, aber eine `dauer_min` in der Zeile, wird daraus ein zeitbasierter Satz (z. B. Plank).
 - Fehlen `satz` und `dauer_min`, wird die Übung ohne Sätze angelegt. Die `notiz` gehört dann zur Übung.
 - Sonst ist `notiz` die Notiz eines Satzes (z. B. „Myo 1“).
+
+**Übungen-Zuordnung (`uebungen_zuordnung.csv`):**
+- Ordnet jeder Übung (Name + Variante, Groß-/Kleinschreibung egal) genau eine Standard-Muskelgruppe zu.
+- Erlaubt sind **Brust, Rücken, Schultern, Arme, Beine, Gesäß, Core, Ganzkörper**. Andere Begriffe (z. B. „Po“) meldet der Fehlerbericht, sie werden nicht stillschweigend umgedeutet.
+- `anzahl_einheiten` wird nur in der Vorschau angezeigt und mit der Zahl in der App verglichen, aber nicht gespeichert.
+- Die App erkennt die Datei beim „CSV importieren“ automatisch, mit oder ohne Kopfzeile.
+- **Die Reihenfolge ist egal:** Kommt die Zuordnung nach dem Kraft-Import, wird der Fokus der Einheiten rückwirkend aus der Menge der Muskelgruppen ihrer Übungen abgeleitet. Liegt sie schon vor, setzt der Kraft-Import den Fokus direkt.
+- Ein von Hand gewählter Fokus bleibt unverändert.
+- Unter **Übungen verwalten** kannst du je Übung auch mehrere Muskelgruppen eintragen (z. B. Beinpresse: Beine und Gesäß). Unter **CSV-Vorlagen → Übungen-Zuordnung** gibt es eine Vorlage, die bereits alle deine Übungen samt Anzahl enthält.
 
 Vor dem Import zeigt die App eine **Vorschau**: Anzahl der Einheiten, den Zeitraum, neue Übungen und Hallen, mögliche Dubletten (abschaltbar) und einen **Fehlerbericht mit Zeilennummer**. Fehlerhafte Zeilen werden übersprungen. Doppelte Schreibweisen von Übungen kannst du später unter **Einstellungen → Übungen verwalten → Zusammenführen** bereinigen.
 
@@ -127,3 +137,4 @@ npm run build
 | Kennzahlen, Serien, Bestleistungen | `src/lib/stats.ts` |
 | JSON-Sicherung, Zusammenführen | `src/lib/backup.ts` |
 | CSV-Import und Vorlagen | `src/lib/csv.ts` |
+| Muskelgruppen, Übungen-Zuordnung, Fokus | `src/lib/zuordnung.ts` |

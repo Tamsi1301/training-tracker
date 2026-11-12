@@ -5,11 +5,12 @@ import { csvDateRange, importCsv, templateCsv, templateFileName, type CsvImportR
 import { daysBetween, fmtDate, today } from '../lib/dates';
 import { pickFile, readText, shareOrDownload } from '../lib/files';
 import { plural } from '../lib/format';
-import { SPORT_LABEL, type AppData, type Backup, type Halle, type Sport } from '../lib/types';
+import { MUSKELGRUPPEN, SPORT_LABEL, type AppData, type Backup, type Halle, type Muskelgruppe, type Sport } from '../lib/types';
+import { importZuordnung, isZuordnungCsv, zuordnungVorlage, type ZuordnungResult } from '../lib/zuordnung';
 import { normText, sortUebungen, uebungLabel } from '../lib/uebungen';
 import {
   data, deleteHalle, deleteUebung, importCsvResult, importMerge, importReplace, lastBackup, markBackup, mergeUebungen,
-  renameUebung, saveHalle, sessionsForHalle, sessionsForUebung, setTheme, theme, type Theme,
+  updateUebung, importZuordnungResult, saveHalle, sessionsForHalle, sessionsForUebung, setTheme, theme, type Theme,
 } from '../store';
 import { actionSheet, confirmDialog, Field, Row, Segmented, Sheet, showToast, Switch, useSheet } from '../ui/components';
 import {
@@ -22,6 +23,7 @@ type Open =
   | { kind: 'uebungen' }
   | { kind: 'json'; backup: Backup; preview: BackupPreview }
   | { kind: 'csv'; result: CsvImportResult; fileName: string }
+  | { kind: 'zuordnung'; result: ZuordnungResult; fileName: string }
   | { kind: 'vorlagen' }
   | null;
 
@@ -46,6 +48,8 @@ export function SettingsPage() {
       const r = parseBackup(text);
       if (!r.ok) return showToast(r.error, { kind: 'error', ms: 4500 });
       setOpen({ kind: 'json', backup: r.backup, preview: previewBackup(r.backup) });
+    } else if (isZuordnungCsv(text)) {
+      setOpen({ kind: 'zuordnung', result: importZuordnung(text, data.value), fileName: file.name });
     } else {
       const result = importCsv(text, data.value);
       setOpen({ kind: 'csv', result, fileName: file.name });
@@ -123,8 +127,8 @@ export function SettingsPage() {
         <div class="list">
           <Row icon={<span class="badge gold"><IconShield size={19} /></span>} title="Backup exportieren" sub={backupText} onClick={exportBackup} />
           <Row icon={<span class="badge neutral"><IconUpload size={19} /></span>} title="Backup importieren" sub="JSON-Sicherung einspielen" onClick={() => importFile('json')} />
-          <Row icon={<span class="badge neutral"><IconTable size={19} /></span>} title="CSV importieren" sub="Altdaten je Sportart" onClick={() => importFile('csv')} />
-          <Row icon={<span class="badge neutral"><IconDownload size={19} /></span>} title="CSV-Vorlagen" sub="Bouldern, Kraftsport, Laufen" onClick={() => setOpen({ kind: 'vorlagen' })} />
+          <Row icon={<span class="badge neutral"><IconTable size={19} /></span>} title="CSV importieren" sub="Altdaten je Sportart oder Übungen-Zuordnung" onClick={() => importFile('csv')} />
+          <Row icon={<span class="badge neutral"><IconDownload size={19} /></span>} title="CSV-Vorlagen" sub="Bouldern, Kraftsport, Laufen, Zuordnung" onClick={() => setOpen({ kind: 'vorlagen' })} />
         </div>
         <p class="footnote">
           Alle Daten liegen nur auf diesem Gerät. Die installierte App vom Home-Bildschirm hat einen eigenen Speicher, getrennt von Safari.
@@ -149,6 +153,7 @@ export function SettingsPage() {
       {open?.kind === 'json' && <JsonImportSheet backup={open.backup} preview={open.preview} onClose={() => setOpen(null)} />}
       {open?.kind === 'csv' && <CsvImportSheet result={open.result} fileName={open.fileName} onClose={() => setOpen(null)} />}
       {open?.kind === 'vorlagen' && <VorlagenSheet onClose={() => setOpen(null)} />}
+      {open?.kind === 'zuordnung' && <ZuordnungImportSheet result={open.result} fileName={open.fileName} onClose={() => setOpen(null)} />}
     </div>
   );
 }
@@ -257,7 +262,9 @@ function UebungenSheet({ onClose }: { onClose: () => void }) {
           {list.map((u) => (
             <Row
               title={u.name}
-              sub={u.variante ? `Variante: ${u.variante}` : undefined}
+              sub={[u.variante ? `Variante: ${u.variante}` : '', u.muskelgruppen?.length ? u.muskelgruppen.join(', ') : 'ohne Muskelgruppe']
+                .filter(Boolean)
+                .join(' · ')}
               value={String(counts.get(u.id) ?? 0)}
               onClick={() => setEdit(u.id)}
             />
@@ -275,6 +282,7 @@ function UebungEditSheet({ id, onClose }: { id: string; onClose: () => void }) {
   const u = data.value.uebungen.find((x) => x.id === id);
   const [name, setName] = useState(u?.name ?? '');
   const [variante, setVariante] = useState(u?.variante ?? '');
+  const [gruppen, setGruppen] = useState<Muskelgruppe[]>(u?.muskelgruppen ?? []);
   const [err, setErr] = useState<string | null>(null);
   const [pickMerge, setPickMerge] = useState(false);
   const [q, setQ] = useState('');
@@ -298,7 +306,7 @@ function UebungEditSheet({ id, onClose }: { id: string; onClose: () => void }) {
 
   const save = async (close: () => void) => {
     if (!name.trim()) return setErr('Bitte einen Namen eingeben.');
-    const r = await renameUebung(id, name, variante);
+    const r = await updateUebung(id, name, variante, gruppen);
     if (r.conflict) {
       await doMerge(r.conflict.id, close);
       return;
@@ -349,6 +357,20 @@ function UebungEditSheet({ id, onClose }: { id: string; onClose: () => void }) {
       </Field>
       <Field label="Gerät/Variante" for="u-var" hint="Leer lassen, wenn es keine Variante gibt.">
         <input id="u-var" class="input" value={variante} placeholder="optional" onInput={(e) => setVariante((e.target as HTMLInputElement).value)} />
+      </Field>
+      <Field label="Muskelgruppen" hint="Mehrfachauswahl. Daraus wird der Fokus der Einheiten abgeleitet, sofern er nicht von Hand gewählt wurde.">
+        <div class="chips">
+          {MUSKELGRUPPEN.map((m) => (
+            <button
+              type="button"
+              class="chip"
+              aria-pressed={gruppen.includes(m)}
+              onClick={() => setGruppen(gruppen.includes(m) ? gruppen.filter((x) => x !== m) : [...gruppen, m])}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </Field>
       <p class="footnote">Verwendet in {plural(used, 'Einheit', 'Einheiten')}. Gibt es Name und Variante schon, bietet die App das Zusammenführen an.</p>
       <div class="section stack">
@@ -614,6 +636,16 @@ function VorlagenSheet({ onClose }: { onClose: () => void }) {
           <Row icon={<SportBadge sport={sp} />} title={SPORT_LABEL[sp]} sub={templateFileName(sp)} value={<IconDownload size={20} />} chevron={false} onClick={() => dl(sp)} />
         ))}
       </div>
+      <div class="list" style={{ marginTop: '12px' }}>
+        <Row
+          icon={<span class="badge kraft"><IconKraft size={20} /></span>}
+          title="Übungen-Zuordnung"
+          sub={data.value.uebungen.length ? `Mit deinen ${data.value.uebungen.length} Übungen zum Ergänzen` : 'uebungen_zuordnung.csv'}
+          value={<IconDownload size={20} />}
+          chevron={false}
+          onClick={() => shareOrDownload('uebungen_zuordnung.csv', zuordnungVorlage(data.value), 'text/csv')}
+        />
+      </div>
       <div class="section">
         <h3 class="section-title">Format</h3>
         <div class="card" style={{ fontSize: '15px' }}>
@@ -625,11 +657,134 @@ function VorlagenSheet({ onClose }: { onClose: () => void }) {
           <p style={{ margin: '0 0 8px' }}>
             <b style={{ fontWeight: 500 }}>Bouldern:</b> eine Zeile pro Einheit. Neue Hallen brauchen halle_max_grad (1–10).
           </p>
-          <p style={{ margin: 0 }}>
+          <p style={{ margin: '0 0 8px' }}>
             <b style={{ fontWeight: 500 }}>Laufen:</b> eine Zeile pro Lauf, Dauer als h:mm:ss.
+          </p>
+          <p style={{ margin: 0 }}>
+            <b style={{ fontWeight: 500 }}>Übungen-Zuordnung:</b> uebung;geraet_variante;anzahl_einheiten;muskelgruppe – eine Muskelgruppe je Übung
+            ({MUSKELGRUPPEN.join(', ')}). anzahl_einheiten dient nur zur Kontrolle.
           </p>
         </div>
       </div>
     </Sheet>
+  );
+}
+
+// ================================================================ Übungen-Zuordnung
+
+const STATUS_LABEL: Record<ZuordnungResult['zeilen'][number]['status'], string> = {
+  neu: 'neu',
+  gesetzt: 'zugeordnet',
+  geaendert: 'geändert',
+  unveraendert: 'unverändert',
+};
+
+function ZuordnungImportSheet({ result, fileName, onClose }: { result: ZuordnungResult; fileName: string; onClose: () => void }) {
+  const [showAll, setShowAll] = useState(false);
+  const n = (st: string) => result.zeilen.filter((z) => z.status === st).length;
+  const abweichend = result.zeilen.filter((z) => z.anzahlDatei != null && z.anzahlDatei !== z.anzahlApp);
+  const aenderungen = result.neueUebungen.length + result.geaenderteUebungen.length + result.fokusEinheiten.length;
+  const zeilen = showAll ? result.zeilen : result.zeilen.slice(0, 30);
+
+  return (
+    <Sheet title="Übungen-Zuordnung" onClose={onClose} left={(close) => <button class="btn ghost" onClick={close}>Abbrechen</button>}>
+      <div class="card">
+        <div class="row">
+          <span class="badge kraft"><IconKraft size={20} /></span>
+          <div class="spacer" style={{ minWidth: 0 }}>
+            <div class="eyebrow">Muskelgruppen je Übung</div>
+            <div class="faint" style={{ fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName}</div>
+          </div>
+        </div>
+        <div class="row" style={{ alignItems: 'baseline', marginTop: '14px' }}>
+          <span class="preview-num">{result.zeilen.length}</span>
+          <span class="muted">{result.zeilen.length === 1 ? 'Übung erkannt' : 'Übungen erkannt'}</span>
+        </div>
+        <p class="muted" style={{ margin: '8px 0 0', fontSize: '15px' }}>
+          {n('gesetzt')} zugeordnet · {n('geaendert')} geändert · {n('neu')} neu · {n('unveraendert')} unverändert
+          <br />
+          Fokus wird für {plural(result.fokusEinheiten.length, 'Kraft-Einheit', 'Kraft-Einheiten')} abgeleitet
+        </p>
+      </div>
+
+      {result.zeilen.length > 0 && (
+        <div class="section">
+          <h3 class="section-title">
+            <span>Kontrolle</span>
+            <span style={{ textTransform: 'none', letterSpacing: 0 }}>Datei · App</span>
+          </h3>
+          <div class="list">
+            {zeilen.map((z) => (
+              <Row
+                title={z.variante ? `${z.name} (${z.variante})` : z.name}
+                sub={`${z.muskelgruppe} · ${STATUS_LABEL[z.status]}`}
+                value={
+                  <span style={z.anzahlDatei != null && z.anzahlDatei !== z.anzahlApp ? { color: 'var(--danger)' } : undefined}>
+                    {z.anzahlDatei ?? '–'} · {z.anzahlApp}
+                  </span>
+                }
+                chevron={false}
+              />
+            ))}
+            {result.zeilen.length > 30 && (
+              <button class="list-row accent" onClick={() => setShowAll(!showAll)}>
+                <span class="main"><div class="title">{showAll ? 'Weniger anzeigen' : `Alle ${result.zeilen.length} anzeigen`}</div></span>
+              </button>
+            )}
+          </div>
+          <p class="footnote">
+            Rechts: Anzahl Einheiten laut Datei · in der App. Die Zahl aus der Datei dient nur zur Kontrolle und wird nicht gespeichert.
+            {abweichend.length > 0 && ` ${plural(abweichend.length, 'Übung weicht', 'Übungen weichen')} ab (rot) – z. B. wenn der Kraft-Import noch fehlt oder Dubletten übersprungen wurden.`}
+          </p>
+        </div>
+      )}
+
+      {result.fehler.length > 0 && (
+        <div class="section">
+          <h3 class="section-title">
+            <span style={{ color: 'var(--danger)' }}>Fehlerbericht ({result.fehler.length})</span>
+          </h3>
+          <div class="card">
+            <div class="error-list">
+              {result.fehler.map((f) => (
+                <div>
+                  <b>{f.zeile ? `Zeile ${f.zeile}` : 'Datei'}</b>
+                  {f.problem}
+                </div>
+              ))}
+            </div>
+          </div>
+          <p class="footnote">Diese Zeilen werden übersprungen.</p>
+        </div>
+      )}
+      <ZuordnungConfirm result={result} count={aenderungen} />
+    </Sheet>
+  );
+}
+
+function ZuordnungConfirm({ result, count }: { result: ZuordnungResult; count: number }) {
+  const { close } = useSheet();
+  const [busy, setBusy] = useState(false);
+  return (
+    <div class="section">
+      <button
+        class="btn primary block"
+        disabled={count === 0 || busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await importZuordnungResult(result);
+            showToast(`Zuordnung übernommen · Fokus für ${plural(result.fokusEinheiten.length, 'Einheit', 'Einheiten')}`);
+            close();
+          } catch (e) {
+            console.error(e);
+            showToast('Import fehlgeschlagen.', { kind: 'error' });
+            setBusy(false);
+          }
+        }}
+      >
+        {count > 0 ? 'Zuordnung übernehmen' : 'Keine Änderungen'}
+      </button>
+    </div>
   );
 }

@@ -6,7 +6,8 @@ import { applyCsvImport, type CsvImportResult } from './lib/csv';
 import { nowISO, uuid } from './lib/ids';
 import { sortNewestFirst } from './lib/stats';
 import { cleanText, findUebung, uebungKey } from './lib/uebungen';
-import type { AppData, Halle, Session, Uebung } from './lib/types';
+import type { AppData, Halle, Muskelgruppe, Session, Uebung } from './lib/types';
+import { applyZuordnung, fokusNeuAbleiten, ordneMuskelgruppen, type ZuordnungResult } from './lib/zuordnung';
 
 export type Theme = 'auto' | 'hell' | 'dunkel';
 export type Tab = 'dashboard' | 'neu' | 'verlauf' | 'einstellungen';
@@ -128,16 +129,44 @@ export async function deleteHalle(id: string, moveTo?: string): Promise<void> {
 export const sessionsForUebung = (id: string) =>
   data.value.sessions.filter((s) => s.sport === 'kraft' && s.uebungen.some((e) => e.uebungId === id));
 
-/** Benennt eine Übung um. Gibt die kollidierende Übung zurück, falls Name+Variante schon existiert. */
-export async function renameUebung(id: string, name: string, variante: string): Promise<{ conflict?: Uebung }> {
+/** Schreibt geänderte Übungen und leitet den Fokus betroffener Kraft-Einheiten neu ab. */
+async function putUebungenUndFokus(changedU: Uebung[], removeU: string[] = [], extraSessions: Session[] = []): Promise<void> {
+  const now = nowISO();
+  const map = new Map(changedU.map((u) => [u.id, u]));
+  const uebungen = data.value.uebungen.filter((u) => !removeU.includes(u.id)).map((u) => map.get(u.id) ?? u);
+  const extra = new Map(extraSessions.map((x) => [x.id, x]));
+  const base = data.value.sessions.map((x) => extra.get(x.id) ?? x);
+  const fokus = fokusNeuAbleiten(base, uebungen, now);
+  const fmap = new Map<string, Session>(fokus.map((x) => [x.id, x]));
+  const sessions = base.map((x) => fmap.get(x.id) ?? x);
+  const changedS = sessions.filter((x) => fmap.has(x.id) || extra.has(x.id));
+  await db.applyChanges({ put: { uebungen: changedU, sessions: changedS }, del: { uebungen: removeU } });
+  data.value = { ...data.value, uebungen, sessions };
+}
+
+/**
+ * Ändert Name, Variante und Muskelgruppen einer Übung.
+ * Gibt die kollidierende Übung zurück, falls Name+Variante schon existiert.
+ */
+export async function updateUebung(
+  id: string,
+  name: string,
+  variante: string,
+  muskelgruppen: Muskelgruppe[],
+): Promise<{ conflict?: Uebung }> {
   const u = uebungenById.value.get(id);
   if (!u) return {};
   const key = uebungKey(name, variante);
   const conflict = data.value.uebungen.find((x) => x.id !== id && uebungKey(x.name, x.variante) === key);
   if (conflict) return { conflict };
-  const updated: Uebung = { ...u, name: cleanText(name), variante: cleanText(variante), geaendert: nowISO() };
-  await db.applyChanges({ put: { uebungen: [updated] } });
-  data.value = { ...data.value, uebungen: data.value.uebungen.map((x) => (x.id === id ? updated : x)) };
+  const updated: Uebung = {
+    ...u,
+    name: cleanText(name),
+    variante: cleanText(variante),
+    muskelgruppen: ordneMuskelgruppen(muskelgruppen),
+    geaendert: nowISO(),
+  };
+  await putUebungenUndFokus([updated]);
   return {};
 }
 
@@ -150,13 +179,14 @@ export async function mergeUebungen(sourceId: string, targetId: string): Promise
     if (s.sport !== 'kraft' || !s.uebungen.some((e) => e.uebungId === sourceId)) continue;
     changed.push({ ...s, geaendert: now, uebungen: s.uebungen.map((e) => (e.uebungId === sourceId ? { ...e, uebungId: targetId } : e)) });
   }
-  await db.applyChanges({ put: { sessions: changed }, del: { uebungen: [sourceId] } });
-  const ids = new Set(changed.map((s) => s.id));
-  data.value = {
-    ...data.value,
-    uebungen: data.value.uebungen.filter((u) => u.id !== sourceId),
-    sessions: [...data.value.sessions.filter((s) => !ids.has(s.id)), ...changed],
-  };
+  // Zielübung behält ihre Muskelgruppen; hat sie keine, übernimmt sie die der Quelle
+  const source = uebungenById.value.get(sourceId);
+  const target = uebungenById.value.get(targetId);
+  const targetUpdate =
+    target && !target.muskelgruppen?.length && source?.muskelgruppen?.length
+      ? [{ ...target, muskelgruppen: source.muskelgruppen, geaendert: now }]
+      : [];
+  await putUebungenUndFokus(targetUpdate, [sourceId], changed);
   return changed.length;
 }
 
@@ -189,6 +219,12 @@ export async function importCsvResult(res: CsvImportResult, skipDubletten: boole
   await db.applyChanges({ put: { sessions: added, uebungen: newU, hallen: newH } });
   data.value = next;
   return added.length;
+}
+
+export async function importZuordnungResult(res: ZuordnungResult): Promise<void> {
+  const next = applyZuordnung(data.value, res);
+  await db.applyChanges({ put: { uebungen: [...res.geaenderteUebungen, ...res.neueUebungen], sessions: res.fokusEinheiten } });
+  data.value = next;
 }
 
 export async function markBackup(): Promise<void> {

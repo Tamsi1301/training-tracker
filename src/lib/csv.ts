@@ -8,7 +8,7 @@ import { parseClock, parseNum } from './format';
 import { uuid } from './ids';
 import { cleanText, normText, uebungKey } from './uebungen';
 import type { AppData, BoulderSession, Halle, KraftSession, LaufSession, Satz, Session, Sport, Uebung, UebungEintrag } from './types';
-import { GRAD_MAX, GRAD_MIN } from './types';
+import { GRAD_MAX, GRAD_MIN, MUSKELGRUPPEN } from './types';
 
 // ---------------------------------------------------------------- Spalten
 
@@ -324,6 +324,7 @@ function importKraft(rows: CsvRow[], getter: (r: CsvRow) => Get, existing: AppDa
     res.zeilenOk++;
   }
 
+  const byId = new Map([...byKey.values()].map((u) => [u.id, u]));
   for (const d of drafts.values()) {
     d.session.uebungen = [...d.entries.values()].map(({ _order, ...e }) => {
       const idx = e.saetze.map((_, i) => i).sort((a, b) => _order[a] - _order[b] || a - b);
@@ -331,6 +332,10 @@ function importKraft(rows: CsvRow[], getter: (r: CsvRow) => Get, existing: AppDa
       if (e.notiz) out.notiz = e.notiz;
       return out;
     });
+    // Fokus aus den Muskelgruppen der Übungen ableiten (falls schon zugeordnet)
+    const gruppen = new Set(d.session.uebungen.flatMap((e) => byId.get(e.uebungId)?.muskelgruppen ?? []));
+    d.session.fokusMuskulatur = MUSKELGRUPPEN.filter((m) => gruppen.has(m));
+    d.session.fokusAbgeleitet = true;
     res.sessions.push(d.session);
     res.dubletten.push(existing.sessions.some((s) => s.sport === 'kraft' && s.datum === d.session.datum));
   }
