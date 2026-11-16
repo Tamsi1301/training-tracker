@@ -198,6 +198,7 @@ svg {
     calc(var(--gutter) + var(--safe-left));
   max-width: 640px;
   margin: 0 auto;
+  overflow-x: clip;
   animation: page-in 0.32s var(--ease);
 }
 @keyframes page-in {
@@ -767,6 +768,7 @@ a.list-row:active {
 /* Vorschläge über der Tastatur */
 .suggest-row {
   display: flex;
+  max-width: 100%;
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
@@ -794,13 +796,16 @@ a.list-row:active {
 }
 .exercise-head {
   display: grid;
-  grid-template-columns: 1fr auto;
+  /* minmax(0, …): die Vorschlagsleiste darf die Spalte nicht verbreitern */
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: start;
 }
 .exercise-names {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  min-width: 0;
 }
 .exercise-names .input {
   min-height: 46px;
