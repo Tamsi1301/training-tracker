@@ -573,8 +573,8 @@ function KraftFields({ draft, set, errors }: FP) {
                 {u.saetze.length > 0 && (
                   <div class="set-head" aria-hidden="true">
                     <span>#</span>
-                    <span>kg</span>
                     <span>{u.saetze.every((x) => x.modus === 'dauer') ? 'Dauer' : 'Wdh.'}</span>
+                    <span>kg</span>
                     <span />
                     <span />
                   </div>
@@ -585,14 +585,6 @@ function KraftFields({ draft, set, errors }: FP) {
                     <div key={x.key}>
                       <div class="set-row">
                         <span class="nr">{si + 1}</span>
-                        <input
-                          class={`input num${err ? ' invalid' : ''}`}
-                          inputMode="decimal"
-                          placeholder="KG"
-                          aria-label={`Satz ${si + 1}: Gewicht in kg (leer = Körpergewicht)`}
-                          value={x.gewicht}
-                          onInput={(e) => setS(i, si, { gewicht: (e.target as HTMLInputElement).value })}
-                        />
                         {x.modus === 'wdh' ? (
                           <input
                             class={`input num${err ? ' invalid' : ''}`}
@@ -612,6 +604,14 @@ function KraftFields({ draft, set, errors }: FP) {
                             onInput={(e) => setS(i, si, { dauer: (e.target as HTMLInputElement).value })}
                           />
                         )}
+                        <input
+                          class={`input num${err ? ' invalid' : ''}`}
+                          inputMode="decimal"
+                          placeholder="KG"
+                          aria-label={`Satz ${si + 1}: Gewicht in kg (leer = Körpergewicht)`}
+                          value={x.gewicht}
+                          onInput={(e) => setS(i, si, { gewicht: (e.target as HTMLInputElement).value })}
+                        />
                         <button
                           type="button"
                           class="icon-btn"
